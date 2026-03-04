@@ -134,7 +134,7 @@ function M.setup(opts)
         chat.lsp_client = client
 
         if opts.inline_suggest ~= false and not vim.b.amazonq then
-          completion.start(lsp.config)
+          completion.start()
         end
       end
     end,

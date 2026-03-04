@@ -144,13 +144,13 @@ require('amazonq').setup({
 
 ## Inline Code Suggestions
 
-Amazon Q provides AI-powered [code suggestions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/inline-suggestions.html) as you type. These are implemented through the LSP `textDocument/completion` method and work with most Neovim completion plugins (nvim-cmp, blink, mini.completion, etc.).
+Amazon Q provides AI-powered [code suggestions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/inline-suggestions.html) as you type. Suggestions appear as ghost text inline in your editor.
 
 To use inline suggestions:
 
 1. Authenticate with `:AmazonQ login`
 2. Start typing in a supported filetype
-3. Trigger completion using your completion plugin's keybinding
+3. Suggestions appear automatically as ghost text after a brief pause
 
 Inline suggestions are enabled by default. To disable them:
 
@@ -160,6 +160,28 @@ require('amazonq').setup({
   inline_suggest = false,
 })
 ```
+
+### Keybindings
+
+The plugin does not set keybindings by default. You need to configure them yourself. Example:
+
+```lua
+local comp = require('amazonq.completion')
+
+vim.keymap.set('i', '<C-e>',     function() comp.accept('<C-e>') end,      { silent = true, desc = 'Accept suggestion' })
+vim.keymap.set('i', '<C-Right>', function() comp.accept_word('<C-Right>') end, { silent = true, desc = 'Accept next word' })
+vim.keymap.set('i', '<C-Down>',  function() comp.accept_line('<C-Down>') end,  { silent = true, desc = 'Accept next line' })
+vim.keymap.set('i', '<Esc>',     function() comp.dismiss('<Esc>') end,     { silent = true, desc = 'Dismiss suggestion' })
+```
+
+The fallback key (passed as argument) is what gets triggered when there's no suggestion visible. This allows the key to work normally when Amazon Q isn't showing a suggestion.
+
+Available functions:
+- `comp.accept(fallback)` — Accept entire suggestion
+- `comp.accept_word(fallback)` — Accept next word, keep rest as ghost text
+- `comp.accept_line(fallback)` — Accept next line, keep rest as ghost text
+- `comp.dismiss(fallback)` — Dismiss the suggestion
+- `comp.has_suggestion()` — Returns true if ghost text is currently visible
 
 For plugin-specific configuration, see [:help amazonq-config-completion](https://github.com/awslabs/amazonq.nvim/blob/main/doc/amazonq.txt#L175).
 
