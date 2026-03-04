@@ -129,6 +129,18 @@ require('amazonq').setup({
   -- Enable/disable inline code suggestions
   inline_suggest = true,
 
+  -- Debounce delay (ms) before requesting suggestions after typing
+  debounce_ms = 300,
+
+  -- SSO region for authentication (default: us-east-1)
+  -- Set this if your IdC instance is in a different region.
+  -- Patches the language server binary at startup.
+  sso_region = nil,
+
+  -- Amazon Q API region (default: us-east-1)
+  -- Available: 'us-east-1', 'eu-central-1'
+  q_region = nil,
+
   -- Configure the chat panel position and appearance
   on_chat_open = function()
     vim.cmd[[

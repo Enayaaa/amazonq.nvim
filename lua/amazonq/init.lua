@@ -39,6 +39,21 @@ function M.setup(opts)
 
   chat.on_chat_open = opts.on_chat_open or chat.on_chat_open
 
+  -- Patch SSO region in the language server binary if configured.
+  if opts.sso_region then
+    local bin = cmd[2]
+    if bin and vim.fn.filereadable(bin) == 1 then
+      local sed_cmd = ('sed -i \'s/defaultSsoRegion="us-east-1"/defaultSsoRegion="%s"/g\' %s'):format(opts.sso_region, vim.fn.shellescape(bin))
+      vim.fn.system(sed_cmd)
+      log.log(('Patched SSO region to %s'):format(opts.sso_region))
+    end
+  end
+
+  -- Pass Q API region via LSP init options if configured.
+  if opts.q_region then
+    lsp.config.init_options.aws.region = opts.q_region
+  end
+
   lsp.setup({
     debug = opts.debug,
     inline_suggest = opts.inline_suggest,
@@ -49,7 +64,9 @@ function M.setup(opts)
   })
 
   if opts.inline_suggest ~= false then
-    completion.setup()
+    completion.setup({
+      debounce_ms = opts.debounce_ms,
+    })
   end
 
   -- Define the :AmazonQ command.

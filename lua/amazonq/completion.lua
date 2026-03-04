@@ -7,6 +7,8 @@ local current = nil -- { bufnr, row, col, text }
 local debounce_timer = nil
 local enabled = false
 local skip_next_trigger = false
+local debounce_ms = 300
+local request_seq = 0 -- monotonic counter to discard stale responses
 
 --- Get the main amazonq LSP client for the current buffer.
 function M.get_client()
@@ -22,9 +24,10 @@ end
 --- Clear displayed ghost text.
 function M.clear()
   if current then
-    vim.api.nvim_buf_clear_namespace(current.bufnr, ns, 0, -1)
-    current = nil
+    pcall(vim.api.nvim_buf_clear_namespace, current.bufnr, ns, 0, -1)
   end
+  pcall(vim.api.nvim_buf_clear_namespace, 0, ns, 0, -1)
+  current = nil
 end
 
 --- Render suggestion as ghost text at the given position.
@@ -55,9 +58,12 @@ function M.trigger()
     return
   end
 
+  request_seq = request_seq + 1
+  local seq = request_seq
+
   local bufnr = vim.api.nvim_get_current_buf()
   local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
-  params.context = { triggerKind = 1 } -- Automatic
+  params.context = { triggerKind = 1 }
 
   lsp.lsp_request(client, 'aws/textDocument/inlineCompletionWithReferences', params, function(err, result)
     if err then
@@ -68,11 +74,19 @@ function M.trigger()
       return
     end
     vim.schedule(function()
+      -- Discard if a newer request was made since this one.
+      if seq ~= request_seq then
+        return
+      end
       if vim.fn.mode() ~= 'i' then
         return
       end
+      local text = result.items[1].insertText
+      if not text or vim.trim(text) == '' then
+        return
+      end
       local cursor = vim.api.nvim_win_get_cursor(0)
-      show(bufnr, result.items[1].insertText, cursor[1] - 1, cursor[2])
+      show(bufnr, text, cursor[1] - 1, cursor[2])
     end)
   end)
 end
@@ -128,7 +142,7 @@ local function feedkeys(key)
   vim.api.nvim_feedkeys(termcodes(key), 'n', true)
 end
 
---- Accept full suggestion, or send fallback key. Not an expr mapping.
+--- Accept full suggestion, or send fallback key.
 --- @param fallback? string
 function M.accept(fallback)
   if current then
@@ -138,7 +152,7 @@ function M.accept(fallback)
   end
 end
 
---- Accept next word, or send fallback key. Not an expr mapping.
+--- Accept next word, or send fallback key.
 --- @param fallback? string
 function M.accept_word(fallback)
   if current then
@@ -148,7 +162,7 @@ function M.accept_word(fallback)
   end
 end
 
---- Accept next line, or send fallback key. Not an expr mapping.
+--- Accept next line, or send fallback key.
 --- @param fallback? string
 function M.accept_line(fallback)
   if current then
@@ -158,7 +172,7 @@ function M.accept_line(fallback)
   end
 end
 
---- Dismiss suggestion, or send fallback key. Not an expr mapping.
+--- Dismiss suggestion, or send fallback key.
 --- @param fallback? string
 function M.dismiss(fallback)
   if current then
@@ -175,13 +189,17 @@ local function schedule_trigger()
     return
   end
   M.clear()
+  -- Bump seq so any in-flight response is discarded.
+  request_seq = request_seq + 1
   if debounce_timer then
     debounce_timer:stop()
   end
-  debounce_timer = vim.defer_fn(M.trigger, 300)
+  debounce_timer = vim.defer_fn(M.trigger, debounce_ms)
 end
 
-function M.setup()
+function M.setup(opts)
+  opts = opts or {}
+  debounce_ms = opts.debounce_ms or 300
   vim.api.nvim_set_hl(0, 'AmazonQInlineSuggestion', { default = true, link = 'Comment' })
 end
 
